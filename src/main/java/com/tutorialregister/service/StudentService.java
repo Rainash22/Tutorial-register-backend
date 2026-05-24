@@ -3,34 +3,45 @@ package com.tutorialregister.service;
 import com.tutorialregister.dto.StudentRequest;
 import com.tutorialregister.dto.StudentResponse;
 import com.tutorialregister.dto.StudentSummaryResponse;
+import com.tutorialregister.model.Course;
 import com.tutorialregister.model.Student;
 import com.tutorialregister.model.StudentStatus;
 import com.tutorialregister.repository.StudentRepository;
 import com.tutorialregister.web.ResourceNotFoundException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class StudentService {
 
     private final StudentRepository studentRepository;
     private final StaffService staffService;
     private final UserAccountService userAccountService;
+    private final CourseService courseService;
 
     public StudentService(
         StudentRepository studentRepository,
         StaffService staffService,
-        UserAccountService userAccountService
+        UserAccountService userAccountService,
+        @Lazy CourseService courseService  // @Lazy breaks the circular dependency
     ) {
         this.studentRepository = studentRepository;
         this.staffService = staffService;
         this.userAccountService = userAccountService;
+        this.courseService = courseService;
     }
 
+    @Transactional(readOnly = true)
     public List<StudentResponse> findAll() {
         return studentRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public StudentResponse findById(Long id) {
         return toResponse(getStudent(id));
     }
@@ -72,7 +83,6 @@ public class StudentService {
             student.getDateOfBirth(),
             student.getGender(),
             student.getClassName(),
-            student.getCourseName(),
             student.getGuardianName(),
             student.getGuardianPhone(),
             student.getEmail(),
@@ -81,7 +91,8 @@ public class StudentService {
             student.getAdmissionDate(),
             student.getStatus(),
             staffService.toSummary(student.getAssignedStaff()),
-            userAccountService.toSummary(student.getUserAccount())
+            userAccountService.toSummary(student.getUserAccount()),
+            student.getEnrolledCourses().stream().map(courseService::toSummary).toList()
         );
     }
 
@@ -91,7 +102,6 @@ public class StudentService {
         student.setDateOfBirth(request.dateOfBirth());
         student.setGender(request.gender());
         student.setClassName(request.className());
-        student.setCourseName(request.courseName());
         student.setGuardianName(request.guardianName());
         student.setGuardianPhone(request.guardianPhone());
         student.setEmail(request.email());
@@ -101,5 +111,15 @@ public class StudentService {
         student.setStatus(request.status() == null ? StudentStatus.ACTIVE : request.status());
         student.setAssignedStaff(request.assignedStaffId() == null ? null : staffService.getStaff(request.assignedStaffId()));
         student.setUserAccount(request.userAccountId() == null ? null : userAccountService.getUserAccount(request.userAccountId()));
+
+        // Update enrolled courses from the supplied course IDs
+        if (request.courseIds() != null) {
+            Set<Course> courses = new HashSet<>();
+            for (Long courseId : request.courseIds()) {
+                courses.add(courseService.getCourse(courseId));
+            }
+            student.setEnrolledCourses(courses);
+        }
     }
 }
+

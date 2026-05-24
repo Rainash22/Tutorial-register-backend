@@ -2,6 +2,7 @@ package com.tutorialregister.dto;
 
 import com.tutorialregister.model.Gender;
 import java.time.LocalDate;
+import java.util.List;
 
 public record StaffResponse(
     Long id,
@@ -11,6 +12,7 @@ public record StaffResponse(
     String designation,
     Gender gender,
     LocalDate joinedDate,
-    UserSummaryResponse userAccount
+    UserSummaryResponse userAccount,
+    List<CourseSummaryResponse> teachingCourses
 ) {
 }

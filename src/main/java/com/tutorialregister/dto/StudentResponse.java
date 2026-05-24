@@ -3,6 +3,7 @@ package com.tutorialregister.dto;
 import com.tutorialregister.model.Gender;
 import com.tutorialregister.model.StudentStatus;
 import java.time.LocalDate;
+import java.util.List;
 
 public record StudentResponse(
     Long id,
@@ -11,7 +12,6 @@ public record StudentResponse(
     LocalDate dateOfBirth,
     Gender gender,
     String className,
-    String courseName,
     String guardianName,
     String guardianPhone,
     String email,
@@ -20,6 +20,7 @@ public record StudentResponse(
     LocalDate admissionDate,
     StudentStatus status,
     StaffSummaryResponse assignedStaff,
-    UserSummaryResponse userAccount
+    UserSummaryResponse userAccount,
+    List<CourseSummaryResponse> enrolledCourses
 ) {
 }

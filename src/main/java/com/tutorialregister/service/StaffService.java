@@ -7,23 +7,34 @@ import com.tutorialregister.model.Staff;
 import com.tutorialregister.repository.StaffRepository;
 import com.tutorialregister.web.ResourceNotFoundException;
 import java.util.List;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class StaffService {
 
     private final StaffRepository staffRepository;
     private final UserAccountService userAccountService;
+    private final CourseService courseService;
 
-    public StaffService(StaffRepository staffRepository, UserAccountService userAccountService) {
+    public StaffService(
+        StaffRepository staffRepository,
+        UserAccountService userAccountService,
+        @Lazy CourseService courseService  // @Lazy breaks the circular dependency
+    ) {
         this.staffRepository = staffRepository;
         this.userAccountService = userAccountService;
+        this.courseService = courseService;
     }
 
+    @Transactional(readOnly = true)
     public List<StaffResponse> findAll() {
         return staffRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public StaffResponse findById(Long id) {
         return toResponse(getStaff(id));
     }
@@ -66,7 +77,8 @@ public class StaffService {
             staff.getDesignation(),
             staff.getGender(),
             staff.getJoinedDate(),
-            userAccountService.toSummary(staff.getUserAccount())
+            userAccountService.toSummary(staff.getUserAccount()),
+            staff.getTeachingCourses().stream().map(courseService::toSummary).toList()
         );
     }
 
@@ -80,3 +92,4 @@ public class StaffService {
         staff.setUserAccount(request.userAccountId() == null ? null : userAccountService.getUserAccount(request.userAccountId()));
     }
 }
+

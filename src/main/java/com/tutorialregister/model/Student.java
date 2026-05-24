@@ -4,12 +4,16 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -35,8 +39,9 @@ public class Student extends BaseEntity {
     @Column(length = 80)
     private String className;
 
-    @Column(length = 120)
-    private String courseName;
+    /** Courses this student is enrolled in (inverse side of the join table). */
+    @ManyToMany(mappedBy = "students", fetch = FetchType.LAZY)
+    private Set<Course> enrolledCourses = new HashSet<>();
 
     @Column(length = 120)
     private String guardianName;

@@ -4,11 +4,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -40,4 +44,8 @@ public class Staff extends BaseEntity {
 
     @OneToOne
     private UserAccount userAccount;
+
+    /** Courses this staff member teaches (inverse side of teacher foreign key). */
+    @OneToMany(mappedBy = "teacher", fetch = FetchType.LAZY)
+    private List<Course> teachingCourses = new ArrayList<>();
 }

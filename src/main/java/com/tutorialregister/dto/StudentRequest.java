@@ -5,6 +5,7 @@ import com.tutorialregister.model.StudentStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
+import java.util.List;
 
 public record StudentRequest(
     @NotBlank String fullName,
@@ -12,7 +13,6 @@ public record StudentRequest(
     LocalDate dateOfBirth,
     Gender gender,
     String className,
-    String courseName,
     String guardianName,
     String guardianPhone,
     @Email String email,
@@ -21,6 +21,7 @@ public record StudentRequest(
     LocalDate admissionDate,
     StudentStatus status,
     Long assignedStaffId,
-    Long userAccountId
+    Long userAccountId,
+    List<Long> courseIds
 ) {
 }
