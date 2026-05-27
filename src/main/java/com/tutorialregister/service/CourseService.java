@@ -22,15 +22,18 @@ public class CourseService {
     private final CourseRepository courseRepository;
     private final StaffService staffService;
     private final StudentService studentService;
+    private final FeeService feeService;
 
     public CourseService(
         CourseRepository courseRepository,
         StaffService staffService,
-        @Lazy StudentService studentService  // @Lazy breaks the circular dependency
+        @Lazy StudentService studentService,  // @Lazy breaks the circular dependency
+        @Lazy FeeService feeService           // @Lazy breaks the circular dependency
     ) {
         this.courseRepository = courseRepository;
         this.staffService = staffService;
         this.studentService = studentService;
+        this.feeService = feeService;
     }
 
     // ------------------------------------------------------------------ //
@@ -82,14 +85,20 @@ public class CourseService {
         Course course = getCourse(courseId);
         Student student = studentService.getStudent(studentId);
         course.getStudents().add(student);
-        return toResponse(courseRepository.save(course));
+        CourseResponse response = toResponse(courseRepository.save(course));
+        // Auto-create a Fee record for this enrolment
+        feeService.createForEnrolment(student, course);
+        return response;
     }
 
     public CourseResponse unenrolStudent(Long courseId, Long studentId) {
         Course course = getCourse(courseId);
         Student student = studentService.getStudent(studentId);
         course.getStudents().remove(student);
-        return toResponse(courseRepository.save(course));
+        CourseResponse response = toResponse(courseRepository.save(course));
+        // Mark the associated Fee as CANCELLED
+        feeService.cancelForUnenrolment(student, course);
+        return response;
     }
 
     // ------------------------------------------------------------------ //

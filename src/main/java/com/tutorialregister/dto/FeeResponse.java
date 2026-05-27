@@ -3,16 +3,19 @@ package com.tutorialregister.dto;
 import com.tutorialregister.model.FeeStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public record FeeResponse(
     Long id,
     StudentSummaryResponse student,
-    BigDecimal amountDue,
+    CourseSummaryResponse course,
+    BigDecimal totalFee,
+    BigDecimal outstandingAmount,
     BigDecimal amountPaid,
     LocalDate dueDate,
-    LocalDate paidDate,
     FeeStatus status,
-    String paymentReference,
-    String remarks
+    String remarks,
+    LocalDateTime createdAt,
+    LocalDateTime updatedAt
 ) {
 }

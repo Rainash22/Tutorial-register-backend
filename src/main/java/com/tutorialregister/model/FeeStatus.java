@@ -5,5 +5,6 @@ public enum FeeStatus {
     PARTIAL,
     PAID,
     OVERDUE,
-    WAIVED
+    WAIVED,
+    CANCELLED
 }
