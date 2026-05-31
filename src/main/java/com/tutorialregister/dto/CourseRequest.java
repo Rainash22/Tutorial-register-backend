@@ -13,7 +13,7 @@ public record CourseRequest(
     @PositiveOrZero BigDecimal courseFee,
     Integer maxStudents,
     Boolean isActive,
-    Long teacherId,
+    List<Long> teacherIds,
     @Valid List<ClassScheduleRequest> schedules
 ) {
 }

@@ -56,8 +56,8 @@ public class CourseService {
                 : courseRepository.findByInstitutionId(instId).stream().map(this::toResponse).toList();
         } else if (userAccountService.hasRole("STAFF")) {
             return instId == null
-                ? courseRepository.findByTeacherUserAccountUsername(username).stream().map(this::toResponse).toList()
-                : courseRepository.findByInstitutionIdAndTeacherUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
+                ? courseRepository.findByTeachersUserAccountUsername(username).stream().map(this::toResponse).toList()
+                : courseRepository.findByInstitutionIdAndTeachersUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
         } else if (userAccountService.hasRole("STUDENT")) {
             return instId == null
                 ? courseRepository.findByStudentsUserAccountUsername(username).stream().map(this::toResponse).toList()
@@ -83,7 +83,7 @@ public class CourseService {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied to teacher's courses");
             }
         }
-        return courseRepository.findByTeacherId(teacherId).stream().map(this::toResponse).toList();
+        return courseRepository.findByTeachersId(teacherId).stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -99,7 +99,7 @@ public class CourseService {
             } else if (userAccountService.hasRole("STAFF")) {
                 Student student = studentService.getStudent(studentId);
                 boolean isEnrolledInStaffCourse = student.getEnrolledCourses().stream()
-                    .anyMatch(c -> c.getTeacher() != null && c.getTeacher().getUserAccount() != null && username.equals(c.getTeacher().getUserAccount().getUsername()));
+                    .anyMatch(c -> c.getTeachers().stream().anyMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername())));
                 if (!isEnrolledInStaffCourse) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied to student's courses");
                 }
@@ -177,7 +177,7 @@ public class CourseService {
         }
         String username = userAccountService.getCurrentUsername();
         if (userAccountService.hasRole("STAFF")) {
-            if (course.getTeacher() == null || course.getTeacher().getUserAccount() == null || !username.equals(course.getTeacher().getUserAccount().getUsername())) {
+            if (course.getTeachers().stream().noneMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername()))) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied to this course");
             }
         } else if (userAccountService.hasRole("STUDENT")) {
@@ -220,7 +220,7 @@ public class CourseService {
             course.getCourseFee(),
             course.getMaxStudents(),
             course.getIsActive(),
-            staffService.toSummary(course.getTeacher()),
+            course.getTeachers().stream().map(staffService::toSummary).toList(),
             course.getSchedules().stream().map(this::toScheduleResponse).toList(),
             course.getStudents().stream().map(studentService::toSummary).toList()
         );
@@ -237,7 +237,13 @@ public class CourseService {
         course.setCourseFee(request.courseFee());
         course.setMaxStudents(request.maxStudents());
         course.setIsActive(request.isActive() == null ? Boolean.TRUE : request.isActive());
-        course.setTeacher(request.teacherId() == null ? null : staffService.getStaff(request.teacherId()));
+        
+        course.getTeachers().clear();
+        if (request.teacherIds() != null) {
+            for (Long tId : request.teacherIds()) {
+                course.getTeachers().add(staffService.getStaff(tId));
+            }
+        }
 
         // Replace schedules entirely on each save (orphanRemoval handles old ones)
         course.getSchedules().clear();

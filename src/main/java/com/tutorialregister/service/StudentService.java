@@ -106,7 +106,7 @@ public class StudentService {
         String username = userAccountService.getCurrentUsername();
         if (userAccountService.hasRole("STAFF")) {
             boolean isEnrolled = student.getEnrolledCourses().stream()
-                .anyMatch(c -> c.getTeacher() != null && c.getTeacher().getUserAccount() != null && username.equals(c.getTeacher().getUserAccount().getUsername()));
+                .anyMatch(c -> c.getTeachers().stream().anyMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername())));
             if (!isEnrolled) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied to student record");
             }

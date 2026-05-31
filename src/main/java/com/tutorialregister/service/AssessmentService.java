@@ -93,7 +93,7 @@ public class AssessmentService {
         if (userAccountService.hasRole("STAFF")) {
             boolean isAssigned = (assessment.getEvaluatedBy() != null && assessment.getEvaluatedBy().getUserAccount() != null && username.equals(assessment.getEvaluatedBy().getUserAccount().getUsername()))
                 || assessment.getStudent().getEnrolledCourses().stream()
-                    .anyMatch(c -> c.getTeacher() != null && c.getTeacher().getUserAccount() != null && username.equals(c.getTeacher().getUserAccount().getUsername()));
+                    .anyMatch(c -> c.getTeachers().stream().anyMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername())));
             if (!isAssigned) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied to this assessment record");
             }

@@ -14,11 +14,11 @@ public interface FeeRepository extends JpaRepository<Fee, Long> {
     /** Used to check whether a fee already exists for a student-course pair (e.g., on re-enrolment). */
     Optional<Fee> findByStudentIdAndCourseId(Long studentId, Long courseId);
 
-    List<Fee> findByCourseTeacherUserAccountUsername(String username);
+    List<Fee> findByCourseTeachersUserAccountUsername(String username);
 
     List<Fee> findByStudentUserAccountUsername(String username);
 
     List<Fee> findByStudentInstitutionId(Long institutionId);
 
-    List<Fee> findByStudentInstitutionIdAndCourseTeacherUserAccountUsername(Long institutionId, String username);
+    List<Fee> findByStudentInstitutionIdAndCourseTeachersUserAccountUsername(Long institutionId, String username);
 }

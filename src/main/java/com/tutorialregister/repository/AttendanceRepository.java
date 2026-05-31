@@ -12,11 +12,11 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
         Long studentId, Long courseId, LocalDate attendanceDate
     );
 
-    List<Attendance> findByCourseTeacherUserAccountUsername(String username);
+    List<Attendance> findByCourseTeachersUserAccountUsername(String username);
 
     List<Attendance> findByStudentUserAccountUsername(String username);
 
     List<Attendance> findByCourseInstitutionId(Long institutionId);
 
-    List<Attendance> findByCourseInstitutionIdAndCourseTeacherUserAccountUsername(Long institutionId, String username);
+    List<Attendance> findByCourseInstitutionIdAndCourseTeachersUserAccountUsername(Long institutionId, String username);
 }

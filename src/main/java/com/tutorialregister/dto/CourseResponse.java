@@ -11,7 +11,7 @@ public record CourseResponse(
     BigDecimal courseFee,
     Integer maxStudents,
     Boolean isActive,
-    StaffSummaryResponse teacher,
+    List<StaffSummaryResponse> teachers,
     List<ClassScheduleResponse> schedules,
     List<StudentSummaryResponse> students
 ) {

@@ -54,8 +54,8 @@ public class AttendanceService {
                 : attendanceRepository.findByCourseInstitutionId(instId).stream().map(this::toResponse).toList();
         } else if (userAccountService.hasRole("STAFF")) {
             return instId == null
-                ? attendanceRepository.findByCourseTeacherUserAccountUsername(username).stream().map(this::toResponse).toList()
-                : attendanceRepository.findByCourseInstitutionIdAndCourseTeacherUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
+                ? attendanceRepository.findByCourseTeachersUserAccountUsername(username).stream().map(this::toResponse).toList()
+                : attendanceRepository.findByCourseInstitutionIdAndCourseTeachersUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
         } else if (userAccountService.hasRole("STUDENT")) {
             return attendanceRepository.findByStudentUserAccountUsername(username).stream().map(this::toResponse).toList();
         }
@@ -195,7 +195,7 @@ public class AttendanceService {
         }
         String username = userAccountService.getCurrentUsername();
         if (userAccountService.hasRole("STAFF")) {
-            if (a.getCourse() == null || a.getCourse().getTeacher() == null || a.getCourse().getTeacher().getUserAccount() == null || !username.equals(a.getCourse().getTeacher().getUserAccount().getUsername())) {
+            if (a.getCourse() == null || a.getCourse().getTeachers().stream().noneMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername()))) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied to this attendance record");
             }
         } else if (userAccountService.hasRole("STUDENT")) {
@@ -213,7 +213,7 @@ public class AttendanceService {
         }
         String username = userAccountService.getCurrentUsername();
         if (userAccountService.hasRole("STAFF")) {
-            if (course.getTeacher() == null || course.getTeacher().getUserAccount() == null || !username.equals(course.getTeacher().getUserAccount().getUsername())) {
+            if (course.getTeachers().stream().noneMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername()))) {
                 throw new org.springframework.security.access.AccessDeniedException("Access denied: You are not assigned to teach this course");
             }
         } else if (userAccountService.hasRole("STUDENT")) {

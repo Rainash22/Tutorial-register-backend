@@ -76,7 +76,7 @@ public class FeeHistoryService {
         if (!userAccountService.hasRole("ADMIN")) {
             if (userAccountService.hasRole("STAFF")) {
                 String username = userAccountService.getCurrentUsername();
-                if (fee.getCourse() == null || fee.getCourse().getTeacher() == null || fee.getCourse().getTeacher().getUserAccount() == null || !username.equals(fee.getCourse().getTeacher().getUserAccount().getUsername())) {
+                if (fee.getCourse() == null || fee.getCourse().getTeachers().stream().noneMatch(t -> t.getUserAccount() != null && username.equals(t.getUserAccount().getUsername()))) {
                     throw new org.springframework.security.access.AccessDeniedException("Access denied: You can only record payments for your own students");
                 }
             } else {

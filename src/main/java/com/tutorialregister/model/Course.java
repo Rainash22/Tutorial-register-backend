@@ -47,10 +47,14 @@ public class Course extends BaseEntity {
     @Column(nullable = false)
     private Boolean isActive = true;
 
-    /** One teacher (Staff) per course; a teacher can teach many courses. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "teacher_id")
-    private Staff teacher;
+    /** Many-to-many: staff assigned to this course. */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "course_teachers",
+        joinColumns = @JoinColumn(name = "course_id"),
+        inverseJoinColumns = @JoinColumn(name = "staff_id")
+    )
+    private Set<Staff> teachers = new java.util.HashSet<>();
 
     /** Many-to-many: students enrolled in this course. */
     @ManyToMany(fetch = FetchType.LAZY)
