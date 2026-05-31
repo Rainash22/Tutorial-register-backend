@@ -2,6 +2,7 @@ package com.tutorialregister.web;
 
 import com.tutorialregister.dto.AttendanceRequest;
 import com.tutorialregister.dto.AttendanceResponse;
+import com.tutorialregister.dto.BulkAttendanceRequest;
 import com.tutorialregister.service.AttendanceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -40,6 +41,34 @@ public class AttendanceController {
     @ResponseStatus(HttpStatus.CREATED)
     public AttendanceResponse create(@Valid @RequestBody AttendanceRequest request) {
         return attendanceService.create(request);
+    }
+
+    /**
+     * Bulk-mark attendance for all students enrolled on a course.
+     * <p>
+     * All enrolled students receive {@code defaultStatus} (defaults to
+     * {@code PRESENT} if omitted).  Individual students can be given a
+     * different status via the {@code overrides} list.
+     *
+     * <pre>
+     * POST /api/attendance/bulk/course/{courseId}
+     * {
+     *   "attendanceDate": "2025-06-01",
+     *   "markedById": 3,
+     *   "defaultStatus": "PRESENT",
+     *   "overrides": [
+     *     { "studentId": 7, "status": "ABSENT", "remarks": "No reason given" }
+     *   ]
+     * }
+     * </pre>
+     */
+    @PostMapping("/bulk/course/{courseId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<AttendanceResponse> createBulkForCourse(
+        @PathVariable Long courseId,
+        @Valid @RequestBody BulkAttendanceRequest request
+    ) {
+        return attendanceService.createBulkForCourse(courseId, request);
     }
 
     @PutMapping("/{id}")

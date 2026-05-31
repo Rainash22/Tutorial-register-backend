@@ -6,6 +6,7 @@ import java.time.LocalDate;
 
 public record AttendanceRequest(
     @NotNull Long studentId,
+    Long courseId,
     Long markedById,
     @NotNull LocalDate attendanceDate,
     @NotNull AttendanceStatus status,
