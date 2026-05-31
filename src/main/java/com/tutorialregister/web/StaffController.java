@@ -21,9 +21,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class StaffController {
 
     private final StaffService staffService;
+    private final com.tutorialregister.service.UserAccountService userAccountService;
+    private final com.tutorialregister.repository.StaffRepository staffRepository;
 
-    public StaffController(StaffService staffService) {
+    public StaffController(
+        StaffService staffService,
+        com.tutorialregister.service.UserAccountService userAccountService,
+        com.tutorialregister.repository.StaffRepository staffRepository
+    ) {
         this.staffService = staffService;
+        this.userAccountService = userAccountService;
+        this.staffRepository = staffRepository;
+    }
+
+    @PostMapping("/{id}/generate-credentials")
+    public com.tutorialregister.dto.UserAccountResponse generateCredentials(@PathVariable Long id) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Admin role required to generate credentials");
+        }
+        return userAccountService.generateCredentialsForStaff(id, staffRepository);
     }
 
     @GetMapping

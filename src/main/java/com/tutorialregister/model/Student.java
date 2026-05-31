@@ -70,4 +70,8 @@ public class Student extends BaseEntity {
 
     @OneToOne
     private UserAccount userAccount;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "institution_id")
+    private Institution institution;
 }

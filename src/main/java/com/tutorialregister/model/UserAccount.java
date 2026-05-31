@@ -32,6 +32,13 @@ public class UserAccount extends BaseEntity {
     @Column(nullable = false)
     private String passwordHash;
 
+    @Column(name = "generated_password")
+    private String generatedPassword;
+
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "institution_id")
+    private Institution institution;
+
     @Column(nullable = false)
     private boolean enabled = true;
 

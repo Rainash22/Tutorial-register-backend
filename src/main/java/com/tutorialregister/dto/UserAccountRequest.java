@@ -9,6 +9,8 @@ public record UserAccountRequest(
     @Email @NotBlank String email,
     @NotBlank String passwordHash,
     Boolean enabled,
-    Set<Long> roleIds
+    Set<Long> roleIds,
+    String institutionName,
+    String institutionCode
 ) {
 }

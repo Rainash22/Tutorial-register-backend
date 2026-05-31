@@ -64,4 +64,8 @@ public class Course extends BaseEntity {
     /** Class time schedules belonging to this course. */
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClassSchedule> schedules = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "institution_id")
+    private Institution institution;
 }

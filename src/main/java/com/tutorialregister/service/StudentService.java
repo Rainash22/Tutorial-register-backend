@@ -38,34 +38,92 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<StudentResponse> findAll() {
-        return studentRepository.findAll().stream().map(this::toResponse).toList();
+        String username = userAccountService.getCurrentUsername();
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        Long instId = currentUser != null && currentUser.getInstitution() != null ? currentUser.getInstitution().getId() : null;
+
+        if (userAccountService.hasRole("ADMIN")) {
+            return instId == null
+                ? studentRepository.findAll().stream().map(this::toResponse).toList()
+                : studentRepository.findByInstitutionId(instId).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STAFF")) {
+            return instId == null
+                ? List.of()
+                : studentRepository.findStudentsForStaff(username, instId).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STUDENT")) {
+            return studentRepository.findByUserAccountUsername(username).stream().map(this::toResponse).toList();
+        }
+        return List.of();
     }
 
     @Transactional(readOnly = true)
     public StudentResponse findById(Long id) {
-        return toResponse(getStudent(id));
+        Student student = studentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        checkStudentAccess(student);
+        return toResponse(student);
     }
 
     public StudentResponse create(StudentRequest request) {
+        enforceAdmin();
         Student student = new Student();
         applyRequest(student, request);
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        if (currentUser != null) {
+            student.setInstitution(currentUser.getInstitution());
+        }
         return toResponse(studentRepository.save(student));
     }
 
     public StudentResponse update(Long id, StudentRequest request) {
-        Student student = getStudent(id);
+        enforceAdmin();
+        Student student = studentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        userAccountService.verifyInstitution(student.getInstitution());
         applyRequest(student, request);
         return toResponse(studentRepository.save(student));
     }
 
     public void delete(Long id) {
-        Student student = getStudent(id);
+        enforceAdmin();
+        Student student = studentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        userAccountService.verifyInstitution(student.getInstitution());
         studentRepository.delete(student);
     }
 
+    private void enforceAdmin() {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Admin role required");
+        }
+    }
+
+    private void checkStudentAccess(Student student) {
+        userAccountService.verifyInstitution(student.getInstitution());
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            boolean isEnrolled = student.getEnrolledCourses().stream()
+                .anyMatch(c -> c.getTeacher() != null && c.getTeacher().getUserAccount() != null && username.equals(c.getTeacher().getUserAccount().getUsername()));
+            if (!isEnrolled) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to student record");
+            }
+        } else if (userAccountService.hasRole("STUDENT")) {
+            if (student.getUserAccount() == null || !username.equals(student.getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to student record");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
+    }
+
     Student getStudent(Long id) {
-        return studentRepository.findById(id)
+        Student student = studentRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        checkStudentAccess(student);
+        return student;
     }
 
     StudentSummaryResponse toSummary(Student student) {

@@ -7,6 +7,9 @@ public record UserAccountResponse(
     String username,
     String email,
     boolean enabled,
-    List<RoleResponse> roles
+    List<RoleResponse> roles,
+    String generatedPassword,
+    Long institutionId,
+    String institutionCode
 ) {
 }

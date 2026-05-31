@@ -17,6 +17,22 @@ public class RoleService {
         this.roleRepository = roleRepository;
     }
 
+    @jakarta.annotation.PostConstruct
+    public void seedRoles() {
+        ensureRole("ADMIN", "System Administrator with full access");
+        ensureRole("STAFF", "Teaching staff with course allocation permissions");
+        ensureRole("STUDENT", "Student enrolled in courses");
+    }
+
+    private void ensureRole(String name, String description) {
+        if (roleRepository.findByName(name).isEmpty()) {
+            Role role = new Role();
+            role.setName(name);
+            role.setDescription(description);
+            roleRepository.save(role);
+        }
+    }
+
     public List<RoleResponse> findAll() {
         return roleRepository.findAll().stream().map(this::toResponse).toList();
     }

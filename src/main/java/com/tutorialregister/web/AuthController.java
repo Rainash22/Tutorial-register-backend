@@ -25,4 +25,10 @@ public class AuthController {
         LoginResponse response = authService.authenticate(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody com.tutorialregister.dto.ChangePasswordRequest request) {
+        authService.changePassword(request);
+        return ResponseEntity.ok().build();
+    }
 }

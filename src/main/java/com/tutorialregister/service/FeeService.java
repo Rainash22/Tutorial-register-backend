@@ -23,15 +23,18 @@ public class FeeService {
     private final FeeRepository feeRepository;
     private final StudentService studentService;
     private final CourseService courseService;
+    private final UserAccountService userAccountService;
 
     public FeeService(
         FeeRepository feeRepository,
         StudentService studentService,
-        @Lazy CourseService courseService  // @Lazy breaks the circular dependency with CourseService
+        @Lazy CourseService courseService,  // @Lazy breaks the circular dependency with CourseService
+        UserAccountService userAccountService
     ) {
         this.feeRepository = feeRepository;
         this.studentService = studentService;
         this.courseService = courseService;
+        this.userAccountService = userAccountService;
     }
 
     // ------------------------------------------------------------------ //
@@ -40,21 +43,63 @@ public class FeeService {
 
     @Transactional(readOnly = true)
     public List<FeeResponse> findAll() {
-        return feeRepository.findAll().stream().map(this::toResponse).toList();
+        String username = userAccountService.getCurrentUsername();
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        Long instId = currentUser != null && currentUser.getInstitution() != null ? currentUser.getInstitution().getId() : null;
+
+        if (userAccountService.hasRole("ADMIN")) {
+            return instId == null
+                ? feeRepository.findAll().stream().map(this::toResponse).toList()
+                : feeRepository.findByStudentInstitutionId(instId).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STAFF")) {
+            return instId == null
+                ? feeRepository.findByCourseTeacherUserAccountUsername(username).stream().map(this::toResponse).toList()
+                : feeRepository.findByStudentInstitutionIdAndCourseTeacherUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STUDENT")) {
+            return feeRepository.findByStudentUserAccountUsername(username).stream().map(this::toResponse).toList();
+        }
+        return List.of();
     }
 
     @Transactional(readOnly = true)
     public FeeResponse findById(Long id) {
-        return toResponse(getFee(id));
+        Fee fee = getFee(id);
+        checkFeeAccess(fee);
+        return toResponse(fee);
     }
 
     @Transactional(readOnly = true)
     public List<FeeResponse> findByStudent(Long studentId) {
+        // Enforce student access or staff course teacher access
+        if (!userAccountService.hasRole("ADMIN")) {
+            String username = userAccountService.getCurrentUsername();
+            if (userAccountService.hasRole("STUDENT")) {
+                Student student = studentService.getStudent(studentId);
+                if (student.getUserAccount() == null || !username.equals(student.getUserAccount().getUsername())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied to student's fee records");
+                }
+            } else if (userAccountService.hasRole("STAFF")) {
+                Student student = studentService.getStudent(studentId);
+                boolean isEnrolledInStaffCourse = student.getEnrolledCourses().stream()
+                    .anyMatch(c -> c.getTeacher() != null && c.getTeacher().getUserAccount() != null && username.equals(c.getTeacher().getUserAccount().getUsername()));
+                if (!isEnrolledInStaffCourse) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied to student's fee records");
+                }
+            }
+        }
         return feeRepository.findByStudentId(studentId).stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<FeeResponse> findByCourse(Long courseId) {
+        // Enforce staff course teacher access
+        if (!userAccountService.hasRole("ADMIN")) {
+            String username = userAccountService.getCurrentUsername();
+            Course course = courseService.getCourse(courseId);
+            if (course.getTeacher() == null || course.getTeacher().getUserAccount() == null || !username.equals(course.getTeacher().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to course fee records");
+            }
+        }
         return feeRepository.findByCourseId(courseId).stream().map(this::toResponse).toList();
     }
 
@@ -63,6 +108,13 @@ public class FeeService {
     // ------------------------------------------------------------------ //
 
     public FeeResponse create(FeeRequest request) {
+        Course course = courseService.getCourse(request.courseId());
+        userAccountService.verifyInstitution(course.getInstitution());
+        Student student = studentService.getStudent(request.studentId());
+        userAccountService.verifyInstitution(student.getInstitution());
+        if (!userAccountService.hasRole("ADMIN")) {
+            checkCourseAccess(course);
+        }
         Fee fee = new Fee();
         applyRequest(fee, request);
         return toResponse(feeRepository.save(fee));
@@ -70,12 +122,22 @@ public class FeeService {
 
     public FeeResponse update(Long id, FeeRequest request) {
         Fee fee = getFee(id);
+        userAccountService.verifyInstitution(fee.getStudent().getInstitution());
+        if (!userAccountService.hasRole("ADMIN")) {
+            checkFeeAccess(fee);
+            Course course = courseService.getCourse(request.courseId());
+            checkCourseAccess(course);
+        }
         applyRequest(fee, request);
         return toResponse(feeRepository.save(fee));
     }
 
     public void delete(Long id) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Staff members cannot delete fee records");
+        }
         Fee fee = getFee(id);
+        userAccountService.verifyInstitution(fee.getStudent().getInstitution());
         feeRepository.delete(fee);
     }
 
@@ -87,8 +149,15 @@ public class FeeService {
      * @return the number of fee records updated
      */
     public int setDueDateForAll(LocalDate dueDate) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Admin role required to set due dates globally");
+        }
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        Long instId = currentUser != null && currentUser.getInstitution() != null ? currentUser.getInstitution().getId() : null;
+
         List<Fee> activeFees = feeRepository.findAll().stream()
             .filter(f -> f.getStatus() != FeeStatus.CANCELLED)
+            .filter(f -> instId == null || (f.getStudent() != null && f.getStudent().getInstitution() != null && instId.equals(f.getStudent().getInstitution().getId())))
             .toList();
         activeFees.forEach(f -> f.setDueDate(dueDate));
         feeRepository.saveAll(activeFees);
@@ -220,5 +289,47 @@ public class FeeService {
         fee.setDueDate(request.dueDate());
         fee.setStatus(request.status() == null ? FeeStatus.PENDING : request.status());
         fee.setRemarks(request.remarks());
+    }
+
+    private void checkFeeAccess(Fee fee) {
+        if (fee.getStudent() != null) {
+            userAccountService.verifyInstitution(fee.getStudent().getInstitution());
+        }
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            if (fee.getCourse() == null || fee.getCourse().getTeacher() == null || fee.getCourse().getTeacher().getUserAccount() == null || !username.equals(fee.getCourse().getTeacher().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to this fee record");
+            }
+        } else if (userAccountService.hasRole("STUDENT")) {
+            if (fee.getStudent() == null || fee.getStudent().getUserAccount() == null || !username.equals(fee.getStudent().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to this fee record");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
+    }
+
+    private void checkCourseAccess(Course course) {
+        userAccountService.verifyInstitution(course.getInstitution());
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            if (course.getTeacher() == null || course.getTeacher().getUserAccount() == null || !username.equals(course.getTeacher().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You are not assigned to teach this course");
+            }
+        } else if (userAccountService.hasRole("STUDENT")) {
+            boolean isEnrolled = course.getStudents().stream()
+                .anyMatch(s -> s.getUserAccount() != null && username.equals(s.getUserAccount().getUsername()));
+            if (!isEnrolled) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You are not enrolled in this course");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
     }
 }

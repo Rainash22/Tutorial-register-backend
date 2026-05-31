@@ -27,28 +27,61 @@ public class AttendanceService {
     private final StudentService studentService;
     private final StaffService staffService;
     private final CourseService courseService;
+    private final UserAccountService userAccountService;
 
     public AttendanceService(
         AttendanceRepository attendanceRepository,
         StudentService studentService,
         StaffService staffService,
-        @Lazy CourseService courseService  // @Lazy breaks the circular dependency
+        @Lazy CourseService courseService,  // @Lazy breaks the circular dependency
+        UserAccountService userAccountService
     ) {
         this.attendanceRepository = attendanceRepository;
         this.studentService = studentService;
         this.staffService = staffService;
         this.courseService = courseService;
+        this.userAccountService = userAccountService;
     }
 
     public List<AttendanceResponse> findAll() {
-        return attendanceRepository.findAll().stream().map(this::toResponse).toList();
+        String username = userAccountService.getCurrentUsername();
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        Long instId = currentUser != null && currentUser.getInstitution() != null ? currentUser.getInstitution().getId() : null;
+
+        if (userAccountService.hasRole("ADMIN")) {
+            return instId == null
+                ? attendanceRepository.findAll().stream().map(this::toResponse).toList()
+                : attendanceRepository.findByCourseInstitutionId(instId).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STAFF")) {
+            return instId == null
+                ? attendanceRepository.findByCourseTeacherUserAccountUsername(username).stream().map(this::toResponse).toList()
+                : attendanceRepository.findByCourseInstitutionIdAndCourseTeacherUserAccountUsername(instId, username).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STUDENT")) {
+            return attendanceRepository.findByStudentUserAccountUsername(username).stream().map(this::toResponse).toList();
+        }
+        return List.of();
     }
 
     public AttendanceResponse findById(Long id) {
-        return toResponse(getAttendance(id));
+        Attendance attendance = getAttendance(id);
+        checkAttendanceAccess(attendance);
+        return toResponse(attendance);
     }
 
     public AttendanceResponse create(AttendanceRequest request) {
+        if (request.courseId() != null) {
+            Course course = courseService.getCourse(request.courseId());
+            userAccountService.verifyInstitution(course.getInstitution());
+            if (!userAccountService.hasRole("ADMIN")) {
+                checkCourseAccess(course);
+            }
+        } else if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Staff can only mark attendance for assigned courses");
+        }
+        if (request.studentId() != null) {
+            Student student = studentService.getStudent(request.studentId());
+            userAccountService.verifyInstitution(student.getInstitution());
+        }
         Attendance attendance = new Attendance();
         applyRequest(attendance, request);
         return toResponse(attendanceRepository.save(attendance));
@@ -69,6 +102,9 @@ public class AttendanceService {
      */
     public List<AttendanceResponse> createBulkForCourse(Long courseId, BulkAttendanceRequest request) {
         Course course = courseService.getCourse(courseId);
+        if (!userAccountService.hasRole("ADMIN")) {
+            checkCourseAccess(course);
+        }
 
         Staff markedBy = request.markedById() == null
             ? null
@@ -118,18 +154,77 @@ public class AttendanceService {
 
     public AttendanceResponse update(Long id, AttendanceRequest request) {
         Attendance attendance = getAttendance(id);
+        if (attendance.getCourse() != null) {
+            userAccountService.verifyInstitution(attendance.getCourse().getInstitution());
+        }
+        if (!userAccountService.hasRole("ADMIN")) {
+            checkAttendanceAccess(attendance);
+            if (request.courseId() != null) {
+                Course course = courseService.getCourse(request.courseId());
+                checkCourseAccess(course);
+            }
+        }
         applyRequest(attendance, request);
         return toResponse(attendanceRepository.save(attendance));
     }
 
     public void delete(Long id) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Staff members cannot delete attendance records");
+        }
         Attendance attendance = getAttendance(id);
+        if (attendance.getCourse() != null) {
+            userAccountService.verifyInstitution(attendance.getCourse().getInstitution());
+        }
         attendanceRepository.delete(attendance);
     }
 
     private Attendance getAttendance(Long id) {
         return attendanceRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Attendance", id));
+    }
+
+    private void checkAttendanceAccess(Attendance a) {
+        if (a.getCourse() != null) {
+            userAccountService.verifyInstitution(a.getCourse().getInstitution());
+        } else if (a.getStudent() != null) {
+            userAccountService.verifyInstitution(a.getStudent().getInstitution());
+        }
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            if (a.getCourse() == null || a.getCourse().getTeacher() == null || a.getCourse().getTeacher().getUserAccount() == null || !username.equals(a.getCourse().getTeacher().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to this attendance record");
+            }
+        } else if (userAccountService.hasRole("STUDENT")) {
+            if (a.getStudent() == null || a.getStudent().getUserAccount() == null || !username.equals(a.getStudent().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to this attendance record");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
+    }
+
+    private void checkCourseAccess(Course course) {
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            if (course.getTeacher() == null || course.getTeacher().getUserAccount() == null || !username.equals(course.getTeacher().getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You are not assigned to teach this course");
+            }
+        } else if (userAccountService.hasRole("STUDENT")) {
+            boolean isEnrolled = course.getStudents().stream()
+                .anyMatch(s -> s.getUserAccount() != null && username.equals(s.getUserAccount().getUsername()));
+            if (!isEnrolled) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: You are not enrolled in this course");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
     }
 
     private AttendanceResponse toResponse(Attendance attendance) {

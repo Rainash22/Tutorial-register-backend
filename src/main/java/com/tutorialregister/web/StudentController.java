@@ -21,9 +21,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class StudentController {
 
     private final StudentService studentService;
+    private final com.tutorialregister.service.UserAccountService userAccountService;
+    private final com.tutorialregister.repository.StudentRepository studentRepository;
 
-    public StudentController(StudentService studentService) {
+    public StudentController(
+        StudentService studentService,
+        com.tutorialregister.service.UserAccountService userAccountService,
+        com.tutorialregister.repository.StudentRepository studentRepository
+    ) {
         this.studentService = studentService;
+        this.userAccountService = userAccountService;
+        this.studentRepository = studentRepository;
+    }
+
+    @PostMapping("/{id}/generate-credentials")
+    public com.tutorialregister.dto.UserAccountResponse generateCredentials(@PathVariable Long id) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Admin role required to generate credentials");
+        }
+        return userAccountService.generateCredentialsForStudent(id, studentRepository);
     }
 
     @GetMapping

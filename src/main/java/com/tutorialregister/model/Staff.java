@@ -45,6 +45,10 @@ public class Staff extends BaseEntity {
     @OneToOne
     private UserAccount userAccount;
 
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "institution_id")
+    private Institution institution;
+
     /** Courses this staff member teaches (inverse side of teacher foreign key). */
     @OneToMany(mappedBy = "teacher", fetch = FetchType.LAZY)
     private List<Course> teachingCourses = new ArrayList<>();

@@ -19,17 +19,20 @@ public class FeeHistoryService {
     private final FeeService feeService;
     private final StudentService studentService;
     private final CourseService courseService;
+    private final UserAccountService userAccountService;
 
     public FeeHistoryService(
         FeeHistoryRepository feeHistoryRepository,
         FeeService feeService,
         StudentService studentService,
-        CourseService courseService
+        CourseService courseService,
+        UserAccountService userAccountService
     ) {
         this.feeHistoryRepository = feeHistoryRepository;
         this.feeService = feeService;
         this.studentService = studentService;
         this.courseService = courseService;
+        this.userAccountService = userAccountService;
     }
 
     // ------------------------------------------------------------------ //
@@ -70,6 +73,16 @@ public class FeeHistoryService {
      */
     public FeeHistoryResponse create(FeeHistoryRequest request) {
         Fee fee = feeService.getFee(request.feeId());
+        if (!userAccountService.hasRole("ADMIN")) {
+            if (userAccountService.hasRole("STAFF")) {
+                String username = userAccountService.getCurrentUsername();
+                if (fee.getCourse() == null || fee.getCourse().getTeacher() == null || fee.getCourse().getTeacher().getUserAccount() == null || !username.equals(fee.getCourse().getTeacher().getUserAccount().getUsername())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Access denied: You can only record payments for your own students");
+                }
+            } else {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied: Students cannot record payments");
+            }
+        }
 
         FeeHistory history = new FeeHistory();
         history.setFee(fee);
@@ -96,6 +109,9 @@ public class FeeHistoryService {
      * @param id the FeeHistory record to remove
      */
     public void delete(Long id) {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Staff members cannot delete payment history");
+        }
         FeeHistory history = getHistory(id);
         Fee fee = history.getFee();
         feeHistoryRepository.delete(history);

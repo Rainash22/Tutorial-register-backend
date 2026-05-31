@@ -31,34 +31,82 @@ public class StaffService {
 
     @Transactional(readOnly = true)
     public List<StaffResponse> findAll() {
-        return staffRepository.findAll().stream().map(this::toResponse).toList();
+        String username = userAccountService.getCurrentUsername();
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        Long instId = currentUser != null && currentUser.getInstitution() != null ? currentUser.getInstitution().getId() : null;
+
+        if (userAccountService.hasRole("ADMIN")) {
+            return instId == null
+                ? staffRepository.findAll().stream().map(this::toResponse).toList()
+                : staffRepository.findByInstitutionId(instId).stream().map(this::toResponse).toList();
+        } else if (userAccountService.hasRole("STAFF")) {
+            return staffRepository.findByUserAccountUsername(username).stream().map(this::toResponse).toList();
+        }
+        return List.of();
     }
 
     @Transactional(readOnly = true)
     public StaffResponse findById(Long id) {
-        return toResponse(getStaff(id));
+        Staff staff = staffRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Staff", id));
+        checkStaffAccess(staff);
+        return toResponse(staff);
     }
 
     public StaffResponse create(StaffRequest request) {
+        enforceAdmin();
         Staff staff = new Staff();
         applyRequest(staff, request);
+        com.tutorialregister.model.UserAccount currentUser = userAccountService.getCurrentUser();
+        if (currentUser != null) {
+            staff.setInstitution(currentUser.getInstitution());
+        }
         return toResponse(staffRepository.save(staff));
     }
 
     public StaffResponse update(Long id, StaffRequest request) {
-        Staff staff = getStaff(id);
+        enforceAdmin();
+        Staff staff = staffRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Staff", id));
+        userAccountService.verifyInstitution(staff.getInstitution());
         applyRequest(staff, request);
         return toResponse(staffRepository.save(staff));
     }
 
     public void delete(Long id) {
-        Staff staff = getStaff(id);
+        enforceAdmin();
+        Staff staff = staffRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Staff", id));
+        userAccountService.verifyInstitution(staff.getInstitution());
         staffRepository.delete(staff);
     }
 
+    private void enforceAdmin() {
+        if (!userAccountService.hasRole("ADMIN")) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied: Admin role required");
+        }
+    }
+
+    private void checkStaffAccess(Staff staff) {
+        userAccountService.verifyInstitution(staff.getInstitution());
+        if (userAccountService.hasRole("ADMIN")) {
+            return;
+        }
+        String username = userAccountService.getCurrentUsername();
+        if (userAccountService.hasRole("STAFF")) {
+            if (staff.getUserAccount() == null || !username.equals(staff.getUserAccount().getUsername())) {
+                throw new org.springframework.security.access.AccessDeniedException("Access denied to staff record");
+            }
+        } else {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
+    }
+
     Staff getStaff(Long id) {
-        return staffRepository.findById(id)
+        Staff staff = staffRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Staff", id));
+        checkStaffAccess(staff);
+        return staff;
     }
 
     StaffSummaryResponse toSummary(Staff staff) {

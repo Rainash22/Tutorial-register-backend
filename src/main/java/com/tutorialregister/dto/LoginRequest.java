@@ -7,5 +7,8 @@ public record LoginRequest(
     String username,
 
     @NotBlank(message = "Password is required")
-    String password
+    String password,
+
+    @NotBlank(message = "Institution Code is required")
+    String institutionCode
 ) {}
