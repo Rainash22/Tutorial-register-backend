@@ -16,17 +16,20 @@ public class AssessmentService {
     private final StudentService studentService;
     private final StaffService staffService;
     private final UserAccountService userAccountService;
+    private final EmailService emailService;
 
     public AssessmentService(
         AssessmentRepository assessmentRepository,
         StudentService studentService,
         StaffService staffService,
-        UserAccountService userAccountService
+        UserAccountService userAccountService,
+        EmailService emailService
     ) {
         this.assessmentRepository = assessmentRepository;
         this.studentService = studentService;
         this.staffService = staffService;
         this.userAccountService = userAccountService;
+        this.emailService = emailService;
     }
 
     public List<AssessmentResponse> findAll() {
@@ -58,7 +61,25 @@ public class AssessmentService {
         // Access control on the student is handled automatically by studentService.getStudent() in applyRequest
         Assessment assessment = new Assessment();
         applyRequest(assessment, request);
-        return toResponse(assessmentRepository.save(assessment));
+        Assessment saved = assessmentRepository.save(assessment);
+
+        // --- Email notification (async — does not block the response) ---
+        String studentEmail = saved.getStudent() != null ? saved.getStudent().getEmail() : null;
+        if (studentEmail == null && saved.getStudent() != null && saved.getStudent().getUserAccount() != null) {
+            studentEmail = saved.getStudent().getUserAccount().getEmail();
+        }
+        if (saved.getStudent() != null) {
+            emailService.sendAssessmentResult(
+                studentEmail,
+                saved.getStudent().getFullName(),
+                saved.getTitle(),
+                saved.getMarksObtained(),
+                saved.getMaxMarks(),
+                saved.getAssessmentDate()
+            );
+        }
+
+        return toResponse(saved);
     }
 
     public AssessmentResponse update(Long id, AssessmentRequest request) {

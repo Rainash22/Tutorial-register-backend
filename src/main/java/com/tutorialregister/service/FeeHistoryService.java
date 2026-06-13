@@ -5,6 +5,7 @@ import com.tutorialregister.dto.FeeHistoryResponse;
 import com.tutorialregister.model.Fee;
 import com.tutorialregister.model.FeeHistory;
 import com.tutorialregister.model.FeeHistoryStatus;
+import com.tutorialregister.model.FeeStatus;
 import com.tutorialregister.repository.FeeHistoryRepository;
 import com.tutorialregister.web.ResourceNotFoundException;
 import java.util.List;
@@ -20,19 +21,22 @@ public class FeeHistoryService {
     private final StudentService studentService;
     private final CourseService courseService;
     private final UserAccountService userAccountService;
+    private final EmailService emailService;
 
     public FeeHistoryService(
         FeeHistoryRepository feeHistoryRepository,
         FeeService feeService,
         StudentService studentService,
         CourseService courseService,
-        UserAccountService userAccountService
+        UserAccountService userAccountService,
+        EmailService emailService
     ) {
         this.feeHistoryRepository = feeHistoryRepository;
         this.feeService = feeService;
         this.studentService = studentService;
         this.courseService = courseService;
         this.userAccountService = userAccountService;
+        this.emailService = emailService;
     }
 
     // ------------------------------------------------------------------ //
@@ -99,6 +103,25 @@ public class FeeHistoryService {
 
         // Reduce outstanding balance on the parent fee
         feeService.reduceOutstanding(fee, request.amountPaid());
+
+        // --- Email notification (async — does not block the response) ---
+        String studentEmail = fee.getStudent() != null ? fee.getStudent().getEmail() : null;
+        if (studentEmail == null && fee.getStudent() != null && fee.getStudent().getUserAccount() != null) {
+            studentEmail = fee.getStudent().getUserAccount().getEmail();
+        }
+        String studentName = fee.getStudent() != null ? fee.getStudent().getFullName() : "Student";
+        emailService.sendPaymentConfirmation(
+            studentEmail,
+            studentName,
+            request.amountPaid(),
+            fee.getOutstandingAmount(),
+            request.paymentReference()
+        );
+        // Send clearance notice if fee is now fully paid
+        if (fee.getStatus() == FeeStatus.PAID) {
+            String courseName = fee.getCourse() != null ? fee.getCourse().getName() : "your course";
+            emailService.sendFeeClearanceNotice(studentEmail, studentName, courseName);
+        }
 
         return toResponse(saved);
     }
